@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.asiainfo.outbound.mapper.OutboundMapper">
+
+    <resultMap type="com.asiainfo.outbound.enity.ActivityChannelDetail" id="ActivityChannelDetailBean">
+        <id column="channel_id" property="channelId"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="activity_name" property="activityName"/>
+        <result column="channel_name" property="channelName"/>
+
+        <collection property="activityChannelRuleDetailList"
+                    ofType="com.asiainfo.outbound.enity.ActivityChannelRuleDetail" column="channel_id">
+            <result column="rule_id" property="ruleId"/>
+            <result column="rule_name" property="ruleName"/>
+            <result column="rule_value" property="ruleValue"/>
+            <result column="rule_extended_value" property="ruleExtendedValue"/>
+        </collection>
+    </resultMap>
+
+    <insert id="saveOutboundActivityPushRecordInfo" parameterType="map">
+        insert into outbound_activity_push_record_info(
+          activity_id,
+          activity_name,
+          activity_type,
+          start_time,
+          end_time,
+          activity_desc,
+          recommend,
+          ftp_flag
+        )values(
+          #{activityId},
+          #{activityName},
+          #{activityType},
+          #{startTime},
+          #{endTime},
+          #{activityDesc},
+          #{recommend},
+          0
+        )
+    </insert>
+
+
+    <select id="getOutboundActivityList" resultType="com.asiainfo.outbound.enity.Activity">
+        select
+            a.*
+            from activity_info a
+            left join activity_channel_info b on a.activity_id = b.activity_id
+            where
+            a.activity_state in (6,8)
+            and a.stopped = 0
+            and b.rule_id='R001'
+            and deleted = 0
+            and b.channel_id = 'd07'
+            and (select count(1) as num from outbound_activity_push_record_info c where c.activity_id = a.activity_id) =0
+    </select>
+
+    <update id="exportCustomer" parameterType="map">
+        export to #{destPath} of del select
+
+    </update>
+
+
+    <select id="getRencentTouchUser" parameterType="map" resultType="java.lang.String">
+        select phone_no from customer_touch_record_pg_${date}
+        where VARCHAR_FORMAT(op_time,'yyyymmdd') <![CDATA[>= ]]> VARCHAR_FORMAT( current_date - ${intervalDay} day  ,'yyyymmdd')
+        and VARCHAR_FORMAT(op_time,'yyyymmdd') <![CDATA[<= ]]> VARCHAR_FORMAT(current_date,'yyyymmdd')
+    </select>
+
+    <insert id="saveUserRecord" parameterType="string">
+        insert into outbound_activity_user_record_info(
+        phone_no,
+        call_time,
+        frequency,
+        tags,
+        state,
+        )values(
+        #{phoneNo},
+        current_date,
+        0,
+        1,
+        0
+        )
+    </insert>
+
+    <select id="getActivityById" parameterType="java.lang.String" resultType="com.asiainfo.outbound.enity.Activity">
+        SELECT * FROM activity_info WHERE activity_id = #{activityId}
+    </select>
+
+    <select id="getChannelDetail" parameterType="java.lang.String" resultMap="ActivityChannelDetailBean">
+        SELECT
+        a.*,
+        c.*,
+        b.*
+        FROM activity_channel_info a
+        LEFT JOIN channel_rule b on a.rule_id = b.rule_id
+        LEFT JOIN activity_approval_info c on a.channel_id = c.channel_id and c.activity_id = #{activityId}
+        WHERE a.activity_id = #{activityId}
+    </select>
+
+    <select id="getRecommendProduct" parameterType="java.lang.String"
+            resultType="com.asiainfo.outbound.enity.ActivityRecommendProduct">
+        SELECT * FROM activity_recommend_product WHERE activity_id = #{activityId}
+    </select>
+
+    <select id="getOutboundActivityUser" resultType="java.util.Map">
+        select * from outbound_activity_user_record_info
+        where
+        to_char(call_time,'yyyymmdd') <![CDATA[>= ]]> to_char( current_date - ${intervalDay} day  ,'yyyymmdd')
+        and to_char(call_time,'yyyymmdd') <![CDATA[<= ]]> to_char(current_date,'yyyymmdd')
+        and state = 1
+    </select>
+
+</mapper>
